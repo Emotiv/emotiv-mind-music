@@ -12,7 +12,7 @@
 #define AppName "EMOTIV Mind Music"
 #define AppPublisher "EMOTIV"
 #define AppExe "EMOTIV Mind Music.exe"
-#define AppURL "https://github.com/Emotiv/emotiv-mind-music"
+#define AppURL "https://github.com/giovaniemotiv/emotiv-mind-music"
 
 ; Overridden by the workflow with /DAppVersion=<tag>; 0.0.0 marks a local build.
 #ifndef AppVersion

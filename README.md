@@ -69,7 +69,7 @@ users — so a single shared EMOTIV app would stop working at the sixth person.
 ### 4. Install the app
 
 Download from the
-[latest release](https://github.com/Emotiv/emotiv-mind-music/releases/latest):
+[latest release](https://github.com/giovaniemotiv/emotiv-mind-music/releases/latest):
 
 | Platform | File |
 |---|---|

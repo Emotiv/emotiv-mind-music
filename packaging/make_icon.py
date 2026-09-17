@@ -19,11 +19,15 @@ icon, which is worse than a real one but better than no installer at all.
 
 What the source artwork cannot do on its own, and this script does for it:
 
-  * An icon is square and its artwork may not be. The mark is trimmed to its
-    own ink and centred, so padding is measured from what is actually drawn.
-  * A transparent logo can vanish against the taskbar behind it. PLATE puts it
-    on the app's own dark rounded square; set it to None for artwork that is
-    already a finished tile.
+  * It is a stacked lockup — headphones around a brain, over the EMOTIV
+    wordmark and "Mind Music" — on transparent. Below 256px both lines of text
+    are grey smudges that only shrink the mark, so smaller sizes carry the
+    headphones and brain alone. The brain by itself was tried for the smallest
+    sizes and rejected: its bounding box catches the ends of the headband, and
+    at 16px it is a green blob, where the headphone silhouette still reads.
+  * The outlines and the wordmark are near-black. On the app's own dark plate
+    the wordmark vanished completely, so the plate is white — the artwork's own
+    intended ground. Compared side by side at 256, 64, 32, 24 and 16px.
   * macOS and Windows want different shapes. Windows icons run to the edge of
     their square; a macOS icon is a rounded rectangle occupying 824 of 1024
     points, and drawing it full-bleed makes the app loom over its neighbours in
@@ -39,11 +43,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, os.pardir))
 SOURCE = os.path.join(ROOT, "assets", "logo.png")
 
-# The interface background, #0c0e12.
-PLATE = (12, 14, 18, 255)
+# Crop boxes into the 1254x1254 source, measured from its alpha channel. Clean
+# empty bands at rows 872-923 and 1053-1084 separate the mark, the EMOTIV
+# wordmark and "Mind Music", so the split is unambiguous.
+LOCKUP = (94, 163, 1159, 1157)    # everything
+MARK = (143, 163, 1109, 872)      # headphones and brain
+
+# White: see the docstring for why not the interface's dark background.
+PLATE = (255, 255, 255, 255)
 
 # How much of the plate the artwork may fill.
-PADDING = 0.80
+PADDING = 0.82
 
 ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 
@@ -64,9 +74,12 @@ WIN_RADIUS = 0.18
 
 def load():
     from PIL import Image
-    art = Image.open(SOURCE).convert("RGBA")
-    bbox = art.split()[3].getbbox()
-    return art.crop(bbox) if bbox else art
+    return Image.open(SOURCE).convert("RGBA")
+
+
+def art_for(source, size: int):
+    """The crop that still reads at this size."""
+    return source.crop(LOCKUP if size >= 256 else MARK)
 
 
 def render(art, size: int, mac: bool):
@@ -80,7 +93,7 @@ def render(art, size: int, mac: bool):
         ImageDraw.Draw(canvas).rounded_rectangle(
             [inset, inset, size - 1 - inset, size - 1 - inset], radius=radius, fill=PLATE)
 
-    scaled = art.copy()
+    scaled = art_for(art, size)
     box = round(plate_size * (PADDING if PLATE else 1.0))
     scaled.thumbnail((box, box), Image.LANCZOS)
     canvas.alpha_composite(scaled, ((size - scaled.width) // 2, (size - scaled.height) // 2))
