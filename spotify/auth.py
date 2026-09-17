@@ -202,10 +202,17 @@ class _ExclusiveServer(http.server.HTTPServer):
     listening. Two listeners on the redirect port then race for Spotify's
     authorization code — a stale one from a cancelled attempt, or any other
     program that asked. Found as an intermittent connection reset in the tests.
-    So: no address reuse, and Windows' exclusive-use flag on top.
+    So on Windows: no address reuse, and the exclusive-use flag on top.
+
+    On macOS and Linux the same flag is the safe one and must stay on. There it
+    never lets two sockets listen at once; it only allows re-binding a port whose
+    last connections are still in TIME_WAIT. Turning it off everywhere made a
+    second sign-in within a minute of the first fail with "address in use". The
+    login tests sign in back to back on the same fixed port, which is the likely
+    reason the first macOS release build produced no disk image.
     """
 
-    allow_reuse_address = False
+    allow_reuse_address = sys.platform != "win32"
 
     def server_bind(self):
         if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
