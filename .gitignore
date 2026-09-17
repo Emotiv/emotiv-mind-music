@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build output
+build/
+dist/
+*.dmg
+*.zip
+*-setup.exe
+
+# Icons are derived from assets/logo.png by packaging/make_icon.py, which the
+# build runs. The source artwork is committed; the generated icons are not.
+packaging/app_icon.ico
+packaging/app_icon.icns
+packaging/app_icon.iconset/
+
+# Local tooling
+.claude/
+
+# OS litter
+.DS_Store
+Thumbs.db
+desktop.ini

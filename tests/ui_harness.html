@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<!--
+  The real interface, in a normal browser, with no Python, headset or Spotify.
+
+  window.pywebview.api is replaced by a stub, and the page is fed the exact
+  event shapes engine.py emits. Serve the repository root and open:
+
+      python -m http.server 8765
+      http://127.0.0.1:8765/tests/ui_harness.html?scenario=playing
+
+  Scenarios: first-run, fresh, playing, idle, untrained, poor-signal, training, settings, zh
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>EMOTIV Mind Music — UI harness</title>
+
+</head>
+<body>
+<script>
+(async function () {
+  const params = new URLSearchParams(location.search);
+  // Browsers cache app.js and i18n.js hard enough that a reload after an edit
+  // can still run the old code, which makes a test lie. Every load is fresh.
+  const bust = "?v=" + Date.now();
+  const css = document.createElement("link");
+  css.rel = "stylesheet";
+  css.href = "../ui/app.css" + bust;
+  document.head.appendChild(css);
+  const scenario = params.get("scenario") || "playing";
+
+  // The page markup, straight from the shipped file, minus its own scripts.
+  const html = await (await fetch("../ui/index.html", { cache: "no-store" })).text();
+  const body = html.slice(html.indexOf("<body>") + 6, html.indexOf("</body>"))
+    .replace(/<script[\s\S]*?<\/script>/g, "");
+  document.body.insertAdjacentHTML("afterbegin", body);
+
+  const settings = {
+    language: scenario === "first-run" ? null : scenario === "zh" ? "zh" : "en",
+    client_id: scenario === "first-run" || scenario === "fresh" ? "" : "cortex-client-id",
+    client_secret: "", client_secret_set: !["first-run", "fresh"].includes(scenario),
+    spotify_client_id: ["first-run", "fresh"].includes(scenario) ? "" : "spotify-client-id",
+    spotify_refresh_token: "", spotify_access_token: "",
+    bindings: {}, mind_control: true,
+    trigger_threshold: 0.6, trigger_hold: 0.5, trigger_cooldown: 2.0,
+  };
+  const signedIn = !["first-run", "fresh"].includes(scenario);
+  const calls = (window.__calls = []);
+
+  const reply = (name, value) => (...args) => {
+    calls.push([name, ...args]);
+    return Promise.resolve(typeof value === "function" ? value(...args) : value);
+  };
+  window.pywebview = {
+    api: {
+      get_state: reply("get_state", () => ({
+        settings, running: !["first-run", "fresh"].includes(scenario),
+        redirect_uri: "http://127.0.0.1:43917/callback", spotify_signed_in: signedIn,
+        trigger_defaults: { threshold: 0.6, hold: 0.5, cooldown: 2.0 },
+      })),
+      page_ready: reply("page_ready", () => { setTimeout(play, 50); return { ok: true }; }),
+      save_settings: reply("save_settings", (v) => Object.assign(settings, v)),
+      set_binding: reply("set_binding", (command, action) => {
+        bindings[command] = action;
+        emit("bindings", bindingsEvent());
+        return { ok: true };
+      }),
+      set_mind_control: reply("set_mind_control", (on) => { emit("mind_control", { on }); return { ok: true }; }),
+      spotify_devices: reply("spotify_devices", () => { emitSpotify(); return { ok: true, devices }; }),
+      spotify_play_on: reply("spotify_play_on", (id) => {
+        devices.forEach((d) => (d.is_active = d.id === id));
+        preferred = id;
+        const d = devices.find((x) => x.id === id);
+        nowPlaying = nowPlaying || { ...SONG, is_playing: true };
+        nowPlaying.device = d.name;
+        emitSpotify();
+        emit("log", { level: "info", code: "log.spotify_play_on", params: { device: d.name } });
+        return { ok: true };
+      }),
+      player_action: reply("player_action", (action) => {
+        emit("fired", { command: "", action: action === "play_pause" ? "pause" : action, source: "click", ok: true });
+        return { ok: true };
+      }),
+    },
+  };
+  // Anything not stubbed answers ok, and is recorded.
+  window.pywebview.api = new Proxy(window.pywebview.api, {
+    get: (target, name) => target[name] || reply(String(name), { ok: true }),
+  });
+
+  const emit = (event, data) => window.pushEvent(event, JSON.parse(JSON.stringify(data)));
+  const status = (step, state, code = "", params = {}) => emit("status", { step, state, code, params });
+
+  // Spotify's own device shapes, trimmed the way spotify/player.py trims them.
+  const devices = [
+    { id: "laptop", name: "Giovani's laptop", type: "computer", is_active: scenario !== "idle", is_restricted: false, volume: 62 },
+    { id: "phone", name: "Pixel 8", type: "smartphone", is_active: false, is_restricted: false, volume: 40 },
+    { id: "kitchen", name: "Kitchen", type: "speaker", is_active: false, is_restricted: false, volume: 30 },
+    { id: "tv", name: "Living room TV", type: "tv", is_active: false, is_restricted: true, volume: null },
+  ];
+  let preferred = scenario === "idle" ? "kitchen" : "laptop";
+  const SONG = {
+    is_playing: true, shuffle: false, volume: 62, supports_volume: true, device: "Giovani's laptop",
+    track: "Weightless", artists: "Marconi Union", album: "Weightless (Ambient Transmission Vol. 2)",
+    image: "", url: "https://open.spotify.com/track/example", progress_ms: 138000, duration_ms: 485000,
+  };
+  let nowPlaying = scenario === "idle" ? null : { ...SONG };
+  const emitSpotify = () => emit("spotify", {
+    signed_in: true, client_id_set: true, error: "", error_params: {},
+    now_playing: nowPlaying, devices, preferred_device: preferred,
+  });
+
+  const bindings = { push: "play_pause", pull: "next", lift: "previous" };
+  const trained = scenario === "untrained" ? { neutral: 0 } : { neutral: 6, push: 5, pull: 4, lift: 2 };
+  const enabled = scenario === "untrained" ? [] : ["push", "pull", "lift"];
+  const colors = { neutral: "#ff0066", push: "#2ec6c8", pull: "#f2974e", lift: "#a781f3" };
+  const bindingsEvent = () => ({
+    profile: "Giovani", commands: enabled, disabled: [], bindings, colors,
+    actions: ["none", "play_pause", "play", "pause", "next", "previous", "volume_up", "volume_down", "shuffle"],
+  });
+
+  function play() {
+    if (["first-run", "fresh"].includes(scenario)) {
+      status("spotify", "idle", "status.spotify_signed_out");
+      emit("spotify", { signed_in: false, client_id_set: false, now_playing: null, error: "", error_params: {} });
+      return;
+    }
+
+    for (const step of ["credentials", "cortex", "access"]) status(step, "ok");
+    emit("running", { running: true });
+    emit("headsets", { items: [{ id: "INSIGHT2-A3D2F1C0", status: "connected", connectedBy: "dongle", virtual: false }], selected: "INSIGHT2-A3D2F1C0" });
+    status("headset", "ok", "status.headset_ready", { headset: "INSIGHT2-A3D2F1C0" });
+    status("session", "ok", "status.session_created");
+    emit("profiles", { items: ["Giovani", "Demo"] });
+    emit("actions", { items: ["neutral", ...enabled], profile: "Giovani", colors });
+    emit("commands", { profile: "Giovani", enabled, disabled: [], trained, available: ["push", "pull", "lift", "drop", "left", "right"], max_active: 4 });
+    emit("bindings", bindingsEvent());
+    emit("sensitivity", { values: [6, 5, 5, 5], actions: enabled });
+    status("profile", "ok", scenario === "untrained" ? "status.profile_untrained" : "status.profile_loaded", { profile: "Giovani" });
+    status("stream", "ok", "status.streaming");
+
+    const good = scenario !== "poor-signal";
+    const grade = good ? 4 : 1;
+    emit("quality", {
+      cq: { AF3: grade, T7: good ? 4 : 2, Pz: grade, T8: 4, AF4: good ? 3 : 0 }, cq_overall: good ? 94 : 38,
+      eq: { AF3: grade, T7: 4, Pz: good ? 4 : 2, T8: 4, AF4: good ? 4 : 1 }, eq_overall: good ? 90 : 41,
+      battery: 3, signal: 1.0, battery_percent: 80,
+    });
+    emit("training_result", {
+      profile: "Giovani", skill: 0.62, threshold: 0.71, last_score: 0.78, trained,
+      brain_map: [
+        { action: "neutral", coordinates: [0, 0] }, { action: "push", coordinates: [-0.52, 0.61] },
+        { action: "pull", coordinates: [0.44, 0.39] }, { action: "lift", coordinates: [0.12, 0.22] },
+      ],
+    });
+
+    status("spotify", "ok", "status.spotify_ready");
+    emitSpotify();
+
+    emit("log", { level: "info", code: "log.spotify_connected", params: {} });
+
+    if (scenario === "playing" || scenario === "zh" || scenario === "poor-signal") {
+      // push has just fired, and pull is now climbing past the line.
+      emit("fired", { command: "push", action: "pause", source: "mind", ok: true });
+      emit("log", { level: "info", code: "log.fired.mind", params: { command: "push", action: "pause" } });
+      emit("live", { action: "pull", power: 0.74, hold_progress: 0.6, cooling: false, latched: false, binding: "next", armed: true });
+    }
+    if (scenario === "training") {
+      document.querySelector("#training-card .card-head").click();
+      const action = "pull";
+      window.pushEvent("training", { event: "MC_Started", action });
+      // startTraining is what normally opens the overlay; open it the same way.
+      document.querySelector('#command-list .cmd-row[data-action="pull"] .btn.primary').click();
+      setTimeout(() => {
+        emit("training", { event: "MC_Started", action });
+      }, 60);
+    }
+    if (scenario === "settings") document.getElementById("btn-settings").click();
+  }
+
+  for (const src of ["../ui/i18n.js", "../ui/app.js"]) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = src + bust;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.body.appendChild(s);
+    });
+  }
+  window.dispatchEvent(new Event("pywebviewready"));
+})();
+</script>
+</body>
+</html>

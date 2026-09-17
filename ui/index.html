@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EMOTIV Mind Music</title>
+<link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+<!-- ─── Language picker (first run) ───────────────────────────────────────── -->
+<div id="welcome" class="overlay hidden">
+  <div class="welcome-card">
+    <div class="orb-mini"></div>
+    <h1 data-i18n="welcome.title"></h1>
+    <div class="lang-grid">
+      <button class="lang-btn" data-lang="en">
+        <span class="lang-flag">EN</span>
+        <span class="lang-name">English</span>
+      </button>
+      <button class="lang-btn" data-lang="zh">
+        <span class="lang-flag">中</span>
+        <span class="lang-name">中文</span>
+      </button>
+    </div>
+    <p class="muted" data-i18n="welcome.hint"></p>
+  </div>
+</div>
+
+<!-- ─── App ───────────────────────────────────────────────────────────────── -->
+<div id="app" class="hidden">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot" id="brand-dot"></span>
+      <div>
+        <div class="brand-title" data-i18n="app.title"></div>
+        <div class="brand-sub muted" data-i18n="app.subtitle"></div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="device-pill hidden" id="device-pill">
+        <svg id="pill-head" viewBox="0 0 44 48" aria-hidden="true"></svg>
+        <span class="device-name" id="pill-name"></span>
+        <span class="quality-badge" id="pill-quality">—</span>
+      </button>
+      <span class="pill" id="running-pill"></span>
+      <div class="lang-switch">
+        <button data-lang="en" class="lang-chip">EN</button>
+        <button data-lang="zh" class="lang-chip">中文</button>
+      </div>
+      <button class="btn ghost" id="btn-settings" data-i18n="btn.settings"></button>
+    </div>
+  </header>
+
+  <main>
+    <div class="col-main">
+
+      <!-- ─── Getting started: only until all three are done ─────────────── -->
+      <section class="card setup-card hidden" id="setup-card">
+        <div class="row-between">
+          <h2 data-i18n="setup_guide.title"></h2>
+          <span class="muted small" id="setup-progress"></span>
+        </div>
+        <div class="setup-steps">
+          <div class="setup-step" id="setup-cortex">
+            <span class="setup-check"></span>
+            <div class="setup-text">
+              <b data-i18n="setup_guide.cortex"></b>
+              <span class="muted small" data-i18n="setup_guide.cortex.hint"></span>
+            </div>
+            <button class="btn tiny" data-open-settings="cortex" data-i18n="btn.add_keys"></button>
+          </div>
+          <div class="setup-step" id="setup-spotify">
+            <span class="setup-check"></span>
+            <div class="setup-text">
+              <b data-i18n="setup_guide.spotify"></b>
+              <span class="muted small" data-i18n="setup_guide.spotify.hint"></span>
+            </div>
+            <button class="btn tiny" id="btn-setup-spotify" data-i18n="btn.connect_spotify"></button>
+          </div>
+          <div class="setup-step" id="setup-headset">
+            <span class="setup-check"></span>
+            <div class="setup-text">
+              <b data-i18n="setup_guide.headset"></b>
+              <span class="muted small" data-i18n="setup_guide.headset.hint"></span>
+            </div>
+          </div>
+          <div class="setup-step" id="setup-commands">
+            <span class="setup-check"></span>
+            <div class="setup-text">
+              <b data-i18n="setup_guide.commands"></b>
+              <span class="muted small" data-i18n="setup_guide.commands.hint"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Headset, sensors, profile ─────────────────────────────────── -->
+      <section class="card collapsible" id="devices-card">
+        <button class="card-head" data-collapse="devices-card">
+          <i class="chev"></i>
+          <h2 data-i18n="panel.devices"></h2>
+          <span class="card-summary" id="devices-summary"></span>
+        </button>
+
+        <div class="card-body">
+          <div class="row-between">
+            <div class="subhead muted" data-i18n="panel.headsets"></div>
+            <button class="btn tiny ghost" id="btn-refresh-headsets" data-i18n="btn.refresh"></button>
+          </div>
+          <div class="picker" id="headset-list"></div>
+          <div class="empty muted" id="headset-empty"></div>
+
+          <div class="quality hidden" id="quality-block">
+            <svg id="headmap" viewBox="0 0 160 176" aria-hidden="true"></svg>
+            <div class="quality-readout">
+              <div class="q-tabs">
+                <button class="q-tab active" data-quality="cq" data-i18n="quality.contact"></button>
+                <button class="q-tab" data-quality="eq" data-i18n="quality.eeg"></button>
+              </div>
+              <div class="q-big" id="q-big">—</div>
+              <p class="small" id="q-verdict"></p>
+              <p class="muted small" id="q-help"></p>
+            </div>
+          </div>
+
+          <div id="profile-block">
+            <div class="row-between">
+              <div class="subhead muted" data-i18n="panel.profiles"></div>
+              <div class="row-gap">
+                <button class="btn tiny ghost hidden" id="btn-change-profile" data-i18n="btn.change"></button>
+                <button class="btn tiny ghost hidden" id="btn-new-profile-devices" data-i18n="btn.new_profile"></button>
+              </div>
+            </div>
+            <div class="picker" id="profile-list"></div>
+            <div class="empty muted" id="profile-empty"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Now playing ───────────────────────────────────────────────── -->
+      <section class="card now-card" id="now-card">
+        <div class="now-art" id="now-art">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M18 34V14l18-4v20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="34" r="4" fill="currentColor"/><circle cx="32" cy="30" r="4" fill="currentColor"/></svg>
+        </div>
+        <div class="now-info">
+          <div class="now-label muted" id="now-label"></div>
+          <div class="now-track" id="now-track">—</div>
+          <div class="now-artist muted" id="now-artist"></div>
+          <div class="now-progress hidden" id="now-progress"><div class="now-progress-fill" id="now-progress-fill"></div></div>
+
+          <div class="transport" id="transport">
+            <button class="tbtn" data-player="shuffle" id="t-shuffle">
+              <svg viewBox="0 0 24 24"><path d="M3 7h3.5c2 0 3.2 1 4.3 2.7l2.4 4.6C14.3 16 15.5 17 17.5 17H21M18 14l3 3-3 3M3 17h3.5c1.3 0 2.2-.4 3-1.2M13.5 8.2c.8-.8 1.7-1.2 3-1.2H21M18 4l3 3-3 3"/></svg>
+            </button>
+            <button class="tbtn" data-player="previous">
+              <svg viewBox="0 0 24 24"><path d="M6 5v14M19 5l-10 7 10 7z" class="fill"/></svg>
+            </button>
+            <button class="tbtn big" data-player="play_pause" id="t-play">
+              <svg viewBox="0 0 24 24" id="t-play-icon"><path d="M8 5l11 7-11 7z" class="fill"/></svg>
+            </button>
+            <button class="tbtn" data-player="next">
+              <svg viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z" class="fill"/></svg>
+            </button>
+            <button class="tbtn" data-player="volume_down">
+              <svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16.5 12h4" class="fill-first"/></svg>
+            </button>
+            <span class="volume muted" id="t-volume"></span>
+            <button class="tbtn" data-player="volume_up">
+              <svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16.5 12h5M19 9.5v5" class="fill-first"/></svg>
+            </button>
+          </div>
+
+          <div class="now-foot">
+            <label class="device-picker">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+              <span data-i18n="now.play_on"></span>
+              <select id="now-device"></select>
+            </label>
+            <a class="spotify-link hidden" id="now-open" href="#" data-i18n="now.open_in_spotify"></a>
+          </div>
+          <p class="muted small device-hint hidden" id="now-device-hint" data-i18n="now.devices_hint"></p>
+        </div>
+
+        <!-- Shown instead of the player until Spotify is connected -->
+        <div class="now-connect hidden" id="now-connect">
+          <p id="now-connect-text"></p>
+          <div class="row-gap">
+            <button class="btn primary" id="btn-connect-spotify" data-i18n="btn.connect_spotify"></button>
+            <button class="btn ghost" data-open-settings="spotify" data-i18n="btn.spotify_setup"></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── What your mind controls ───────────────────────────────────── -->
+      <section class="card controls-card" id="controls-card">
+        <div class="row-between controls-head">
+          <div>
+            <h2 data-i18n="controls.title"></h2>
+            <p class="muted small" data-i18n="controls.subtitle"></p>
+          </div>
+          <label class="master-switch" id="mind-switch">
+            <span class="master-label" id="mind-switch-label"></span>
+            <button class="toggle big" id="mind-toggle" role="switch"></button>
+          </label>
+        </div>
+
+        <div class="banner warn hidden" id="controls-quality-warning"></div>
+        <div class="banner hidden" id="controls-spotify-warning"></div>
+
+        <div id="binding-list"></div>
+        <div class="controls-empty" id="controls-empty"></div>
+
+        <div class="last-action hidden" id="last-action">
+          <span class="last-dot" id="last-dot"></span>
+          <span id="last-action-text"></span>
+          <span class="muted small" id="last-action-when"></span>
+        </div>
+
+        <details class="finetune" id="finetune">
+          <summary data-i18n="controls.finetune"></summary>
+
+          <div class="finetune-body">
+            <div class="tune-row">
+              <label>
+                <span data-i18n="tune.threshold"></span>
+                <b id="lbl-threshold"></b>
+              </label>
+              <input type="range" id="in-threshold" min="0.2" max="0.95" step="0.05" />
+              <p class="muted small" data-i18n="tune.threshold.hint"></p>
+            </div>
+            <div class="tune-row">
+              <label>
+                <span data-i18n="tune.hold"></span>
+                <b id="lbl-hold"></b>
+              </label>
+              <input type="range" id="in-hold" min="0" max="2" step="0.125" />
+              <p class="muted small" data-i18n="tune.hold.hint"></p>
+            </div>
+            <div class="tune-row">
+              <label>
+                <span data-i18n="tune.cooldown"></span>
+                <b id="lbl-cooldown"></b>
+              </label>
+              <input type="range" id="in-cooldown" min="0.5" max="6" step="0.5" />
+              <p class="muted small" data-i18n="tune.cooldown.hint"></p>
+            </div>
+            <div class="row-gap" style="justify-content:flex-end">
+              <button class="btn tiny ghost" id="btn-tune-reset" data-i18n="btn.defaults"></button>
+            </div>
+
+            <div id="sensitivity-block" class="hidden">
+              <div class="subhead muted" data-i18n="panel.sensitivity"></div>
+              <p class="muted small" data-i18n="panel.sensitivity.hint"></p>
+              <div id="sensitivity-list"></div>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- ─── Training ──────────────────────────────────────────────────── -->
+      <section class="card collapsible hidden" id="training-card">
+        <button class="card-head" data-collapse="training-card">
+          <i class="chev"></i>
+          <h2 data-i18n="panel.training"></h2>
+          <span class="card-summary" id="training-summary"></span>
+        </button>
+
+        <div class="card-body">
+          <p class="muted small training-intro" data-i18n="training.intro"></p>
+          <div class="row-gap" style="justify-content:flex-end">
+            <button class="btn tiny ghost" id="btn-new-profile" data-i18n="btn.new_profile"></button>
+            <button class="btn tiny ghost danger" id="btn-reset-all" data-i18n="btn.reset_all"></button>
+          </div>
+
+          <div class="subhead muted" data-i18n="panel.commands"></div>
+          <div id="command-list"></div>
+          <div class="add-command">
+            <select id="in-add-command"></select>
+            <button class="btn tiny" id="btn-add-command" data-i18n="btn.add_command"></button>
+          </div>
+          <p class="muted small" id="add-command-hint"></p>
+
+          <div class="subhead muted" data-i18n="panel.brainmap"></div>
+          <div class="brainmap-wrap">
+            <svg id="brainmap" viewBox="0 0 280 168" aria-hidden="true"></svg>
+            <div class="brainmap-side">
+              <div id="brainmap-legend"></div>
+              <div id="training-stats"></div>
+            </div>
+          </div>
+          <p class="muted small" data-i18n="panel.brainmap.hint"></p>
+        </div>
+      </section>
+    </div>
+
+    <aside class="col-side">
+      <section class="card">
+        <h2 data-i18n="panel.status"></h2>
+        <div class="steps" id="steps"></div>
+      </section>
+
+      <section class="card log-card">
+        <div class="row-between">
+          <h2 data-i18n="panel.log"></h2>
+          <button class="btn tiny ghost" id="btn-clear-log" data-i18n="btn.clear"></button>
+        </div>
+        <div class="log" id="log"></div>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="bottombar">
+    <button class="btn primary big" id="btn-run"></button>
+  </footer>
+</div>
+
+<!-- ─── Training window ───────────────────────────────────────────────────── -->
+<div id="training-overlay" class="overlay hidden">
+  <div class="train-card">
+    <div class="train-action">
+      <i class="swatch" id="train-swatch"></i>
+      <span id="train-action-name"></span>
+    </div>
+    <div class="train-binding muted small" id="train-binding"></div>
+
+    <div class="train-ring">
+      <svg viewBox="0 0 120 120">
+        <circle class="ring-bg" cx="60" cy="60" r="52" />
+        <circle class="ring-fill" id="train-ring-fill" cx="60" cy="60" r="52" />
+      </svg>
+      <div class="train-count" id="train-count">8</div>
+    </div>
+
+    <div class="train-phase" id="train-phase"></div>
+    <p class="train-instr" id="train-instruction"></p>
+
+    <div class="train-score hidden" id="train-score">
+      <div class="row-between">
+        <span class="muted" data-i18n="train.score"></span>
+        <b id="train-score-value">—</b>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="train-score-bar"></div></div>
+    </div>
+
+    <div class="train-buttons" id="train-buttons"></div>
+  </div>
+</div>
+
+<!-- ─── New profile ───────────────────────────────────────────────────────── -->
+<div id="profile-overlay" class="overlay hidden">
+  <div class="welcome-card" style="text-align:left">
+    <h1 data-i18n="profile.new.title"></h1>
+    <p class="muted small" data-i18n="profile.new.hint"></p>
+    <input type="text" id="in-new-profile" spellcheck="false" autocomplete="off" />
+    <div class="row-gap" style="margin-top:16px;justify-content:flex-end">
+      <button class="btn ghost" id="btn-cancel-profile" data-i18n="btn.cancel"></button>
+      <button class="btn primary" id="btn-create-profile" data-i18n="btn.create"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Waiting for the browser sign-in ───────────────────────────────────── -->
+<div id="spotify-login-overlay" class="overlay hidden">
+  <div class="welcome-card">
+    <div class="spinner"></div>
+    <h1 data-i18n="spotify_login.title"></h1>
+    <p class="muted small" data-i18n="spotify_login.hint"></p>
+    <button class="btn ghost" id="btn-cancel-login" style="margin-top:18px" data-i18n="btn.cancel"></button>
+  </div>
+</div>
+
+<!-- ─── Settings ──────────────────────────────────────────────────────────── -->
+<div id="settings" class="overlay hidden">
+  <div class="modal">
+    <div class="row-between modal-head">
+      <h1 data-i18n="setup.title"></h1>
+      <button class="btn ghost" id="btn-close-settings" data-i18n="btn.close"></button>
+    </div>
+
+    <div class="modal-body">
+      <section class="field-group" id="settings-cortex">
+        <h3 data-i18n="setup.credentials"></h3>
+        <ol class="howto">
+          <li data-i18n="setup.cortex.step1"></li>
+          <li data-i18n="setup.cortex.step2"></li>
+          <li data-i18n="setup.cortex.step3"></li>
+        </ol>
+        <button class="btn tiny ghost" data-open-url="https://www.emotiv.com/my-account/cortex-apps/" data-i18n="btn.open_cortex_apps"></button>
+        <label data-i18n="setup.client_id"></label>
+        <input type="text" id="in-client-id" spellcheck="false" autocomplete="off" />
+        <label data-i18n="setup.client_secret"></label>
+        <input type="password" id="in-client-secret" spellcheck="false" autocomplete="off" />
+        <p class="muted small hidden" id="secret-saved-note" data-i18n="setup.secret_saved"></p>
+      </section>
+
+      <section class="field-group" id="settings-spotify">
+        <h3 data-i18n="setup.spotify"></h3>
+        <p class="banner small" data-i18n="setup.spotify.premium"></p>
+        <ol class="howto">
+          <li data-i18n="setup.spotify.step1"></li>
+          <li data-i18n="setup.spotify.step2"></li>
+          <li>
+            <span data-i18n="setup.spotify.step3"></span>
+            <div class="copy-row">
+              <code id="redirect-uri"></code>
+              <button class="btn tiny" id="btn-copy-redirect" data-i18n="btn.copy"></button>
+            </div>
+          </li>
+          <li data-i18n="setup.spotify.step4"></li>
+          <li data-i18n="setup.spotify.step5"></li>
+        </ol>
+        <button class="btn tiny ghost" data-open-url="https://developer.spotify.com/dashboard" data-i18n="btn.open_spotify_dashboard"></button>
+        <label data-i18n="setup.spotify_client_id"></label>
+        <input type="text" id="in-spotify-client-id" spellcheck="false" autocomplete="off" />
+        <p class="muted small" data-i18n="setup.spotify.no_secret"></p>
+
+        <div class="row-between spotify-account">
+          <span class="small" id="spotify-account-status"></span>
+          <button class="btn tiny ghost danger hidden" id="btn-spotify-logout" data-i18n="btn.disconnect"></button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn primary" id="btn-save" data-i18n="btn.save"></button>
+    </div>
+  </div>
+</div>
+
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

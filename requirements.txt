@@ -1,0 +1,13 @@
+# Runtime dependencies.
+#
+#   pip install -r requirements.txt
+#
+# Spotify is spoken to with the standard library (urllib), so there is no HTTP
+# client here and nothing extra for PyInstaller to trip over.
+
+# Cortex transport.
+websockets
+
+# The desktop window: a native WebView (WebView2 on Windows, WebKit on macOS).
+# Pulls pythonnet on Windows and pyobjc on macOS by itself.
+pywebview

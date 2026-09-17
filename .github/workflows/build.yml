@@ -1,0 +1,171 @@
+name: Build desktop app
+
+# Builds unsigned macOS and Windows bundles. Run it from the Actions tab, or
+# push a v* tag to also attach the artifacts to a GitHub release.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    # Creating the release for a v* tag writes to the repository. Without this
+    # the token is read-only and the attach step fails with
+    # "Resource not accessible by integration" (403).
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: macOS (Apple Silicon)
+            artifact: EMOTIV-Mind-Music-macos-arm64
+            package: "*.dmg"
+          - os: windows-latest
+            label: Windows (x64)
+            artifact: EMOTIV-Mind-Music-windows-x64
+            package: "*-setup.exe"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # 3.12 rather than the newest: pyobjc and pythonnet ship wheels for it,
+          # so neither runner has to compile anything.
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Tests
+        # The trigger rules, the Spotify sign-in and player (against fake
+        # servers), and translation parity. Cheap, and a release built on a
+        # failing trigger would skip songs on its own.
+        run: |
+          python -m unittest discover -s tests -t . -v
+          node tests/check_i18n.js
+
+      - name: Build icons
+        # Pillow is a build-time dependency only -- the spec excludes PIL from
+        # the bundle -- so it is installed here rather than in requirements.txt.
+        # On macOS this also produces the .icns via iconutil; on Windows that
+        # step no-ops and only the .ico is written.
+        run: |
+          python -m pip install pillow
+          python packaging/make_icon.py
+
+      - name: Build
+        run: pyinstaller packaging/EmotivMindMusic.spec --noconfirm
+
+      # ---------------------------------------------------------------- macOS
+      - name: Package macOS disk image
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dmg
+          cp -R "dist/EMOTIV Mind Music.app" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "EMOTIV Mind Music" \
+            -srcfolder dmg -ov -format UDZO \
+            "EMOTIV-Mind-Music-macos-arm64.dmg"
+
+      - name: Check the macOS bundle actually launches
+        if: runner.os == 'macOS'
+        run: |
+          # The app has no headless mode, so this only proves the bundle starts
+          # and stays up. It catches missing imports and broken bundling. It
+          # does NOT catch a frozen window: a hung UI thread stays up too, which
+          # is exactly how pywebview's js_api walk once froze this app on launch
+          # (see CLAUDE.md). Open the release build by hand before announcing it.
+          "dist/EMOTIV Mind Music.app/Contents/MacOS/EMOTIV Mind Music" &
+          PID=$!
+          sleep 20
+          if kill -0 $PID 2>/dev/null; then
+            echo "bundle still running after 20s"
+            kill $PID
+          else
+            echo "bundle exited early — build is broken"
+            exit 1
+          fi
+
+      # -------------------------------------------------------------- Windows
+      - name: Check the Windows build produced a complete bundle
+        if: runner.os == 'Windows'
+        run: |
+          # No launch check here, unlike macOS. The window is a WebView2
+          # control, which needs a desktop session the hosted runner does not
+          # reliably provide -- a launch test would fail on a build that is
+          # fine. So this checks the shape of the output instead: the exe and
+          # the _internal folder it depends on, at a plausible size. Launching
+          # on Windows is verified by hand before a release.
+          $dir = "dist/EMOTIV Mind Music"
+          $exe = "$dir/EMOTIV Mind Music.exe"
+          foreach ($p in @($exe, "$dir/_internal")) {
+            if (-not (Test-Path $p)) { throw "missing $p" }
+          }
+          $mb = (Get-ChildItem $dir -Recurse -File |
+                 Measure-Object -Property Length -Sum).Sum / 1MB
+          Write-Host ("bundle is {0:N1} MB" -f $mb)
+          # A bundle this far under size means PyInstaller collected almost
+          # nothing -- the Python runtime alone is bigger than this.
+          if ($mb -lt 20) { throw "bundle is implausibly small — build is broken" }
+        shell: pwsh
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        run: |
+          # The tag without its leading v, so the installer carries a real
+          # version; a manual run has no tag and falls back to 0.0.0.
+          $version = "0.0.0"
+          if ($env:GITHUB_REF -like "refs/tags/v*") {
+            $version = $env:GITHUB_REF -replace "^refs/tags/v", ""
+          }
+          Write-Host "building installer for version $version"
+
+          # Inno Setup is on the windows runner image, but the path has moved
+          # between image versions -- look for it rather than hard-coding one,
+          # and install it if a future image drops it entirely.
+          $iscc = Get-Command iscc.exe -ErrorAction SilentlyContinue |
+                  Select-Object -ExpandProperty Source
+          if (-not $iscc) {
+            $iscc = @(
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+              "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+            ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $iscc) {
+            Write-Host "Inno Setup not on the image; installing it"
+            choco install innosetup --no-progress -y
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          Write-Host "using $iscc"
+
+          & $iscc "/DAppVersion=$version" packaging/EmotivMindMusic.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+          Get-ChildItem *-setup.exe | ForEach-Object {
+            Write-Host ("{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB))
+          }
+        shell: pwsh
+
+      # --------------------------------------------------------------- Upload
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.package }}
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.package }}
+          body: |
+            Unsigned builds — see the README for how to open them past
+            Gatekeeper (macOS) and SmartScreen (Windows).
