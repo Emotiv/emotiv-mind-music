@@ -91,9 +91,7 @@ class Engine:
 
     # ------------------------------------------------------------ plumbing
     def emit(self, event: str, data: Dict[str, Any]):
-        if event == "commands":
-            self._on_roster(data)
-        elif event == "actions":
+        if event == "actions":
             data = dict(data, colors=slot_colors(self.commands + self.disabled))
         elif event == "fatal":
             # Only the user can fix this one; stop instead of reconnecting in a
@@ -104,6 +102,14 @@ class Engine:
             self._emit_raw(event, data)
         except Exception as e:
             print(f"[engine] failed to emit {event}: {e}")
+
+        if event == "commands":
+            # After the roster reaches the page, not before: the controls card
+            # is drawn from the bindings event, and it reads the training counts
+            # the roster carries. Sent the other way round, every roster change
+            # drew the controls with the counts from before it, and a command
+            # trained a moment ago was labelled "Not trained yet".
+            self._on_roster(data)
 
     def _status(self, step: str, state: str, code: str = "", **params):
         self.emit("status", {"step": step, "state": state, "code": code, "params": params})

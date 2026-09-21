@@ -32,6 +32,15 @@ const dynamic = {
 };
 for (const [prefix, names] of Object.entries(dynamic)) for (const n of names) used.add(prefix + n);
 
+// Keys chosen with a condition — t(x ? "btn.retrain" : "btn.train") — are not
+// caught by the t("…") pattern above, which is how six labels once shipped as
+// raw keys. So every string literal in app.js that looks like a key in one of
+// the table's own namespaces counts as used.
+const namespaces = new Set(Object.keys(I18N.en).map((k) => k.split(".")[0]));
+for (const m of read("ui/app.js").matchAll(/"([a-z_]+\.[a-zA-Z0-9_.]+)"/g)) {
+  if (namespaces.has(m[1].split(".")[0])) used.add(m[1]);
+}
+
 for (const k of used) {
   if (k.endsWith(".")) continue;
   if (!(k in I18N.en)) problems.push("used but untranslated: " + k);

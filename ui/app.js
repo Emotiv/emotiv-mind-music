@@ -615,9 +615,25 @@ function renderBindings() {
   renderControlsWarnings();
 }
 
+/** Whether a command has training behind it.
+ *
+ *  Two sources say so, and either is enough: the roster's count of accepted
+ *  recordings, and the brain map, which only places a command away from
+ *  Neutral once Cortex has a signature for it. They arrive as separate events,
+ *  so asking only one of them left a trained command labelled "Not trained
+ *  yet" until the other caught up. */
+function isTrained(command) {
+  if ((state.commands.trained[command] || 0) > 0) return true;
+  const map = (state.trainingResult && state.trainingResult.brain_map) || [];
+  const point = map.find((p) => p.action === command);
+  if (!point || !Array.isArray(point.coordinates)) return false;
+  const [x, y] = point.coordinates;
+  return Math.hypot(x || 0, y || 0) > 0;
+}
+
 function bindingRow(command) {
   const color = state.actionColors[command] || "#5ab0ee";
-  const trained = state.commands.trained[command] || 0;
+  const trained = isTrained(command);
   const enabled = state.commands.enabled.includes(command);
 
   const row = document.createElement("div");
@@ -1414,6 +1430,8 @@ window.pushEvent = function (event, data) {
       renderTrainingCard();
       renderSummaries();
       renderSetup();
+      // The controls card labels untrained commands from these counts.
+      renderBindings();
       autoFold();
       break;
     case "bindings":
@@ -1459,6 +1477,7 @@ window.pushEvent = function (event, data) {
       state.trainingResult = data;
       renderBrainmap();
       renderSummaries();
+      renderBindings();
       break;
     case "running":
       state.running = data.running;
