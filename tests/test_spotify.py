@@ -428,5 +428,36 @@ class PlayerTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "err.spotify_no_device")
 
 
+# ------------------------------------------------------------------ TLS roots
+class TlsTests(unittest.TestCase):
+    """The frozen macOS app has no system CA file (see spotify/tls.py), so every
+    Spotify request must carry the bundled roots rather than Python's default."""
+
+    def test_the_context_verifies_against_bundled_roots(self):
+        import ssl
+        from spotify import tls
+        ctx = tls.context()
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(ctx.check_hostname)
+        # certifi carries well over a hundred roots; an empty store is the bug.
+        self.assertGreater(len(ctx.get_ca_certs()), 100)
+
+    def test_every_spotify_request_uses_that_context(self):
+        from unittest import mock
+        from spotify import player, tls
+        seen = []
+
+        def fake_urlopen(request, timeout=None, context=None):
+            seen.append(context)
+            raise urllib.error.URLError("stop here")
+
+        with mock.patch("urllib.request.urlopen", fake_urlopen):
+            with self.assertRaises(SpotifyAuthError):
+                auth.refresh("client", "refresh")
+            with self.assertRaises(urllib.error.URLError):
+                player._default_transport(urllib.request.Request(player.API_BASE), 1)
+        self.assertEqual(seen, [tls.context(), tls.context()])
+
+
 if __name__ == "__main__":
     unittest.main()

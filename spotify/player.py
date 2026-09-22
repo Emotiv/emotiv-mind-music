@@ -15,6 +15,7 @@ import urllib.request
 from typing import Any, Callable, Dict, List, Optional
 
 from controls import VOLUME_STEP
+from spotify import tls
 from spotify.auth import SpotifyAuthError, TokenStore
 
 API_BASE = "https://api.spotify.com/v1"
@@ -31,7 +32,7 @@ Transport = Callable[[urllib.request.Request, float], Any]
 
 
 def _default_transport(request: urllib.request.Request, timeout: float):
-    return urllib.request.urlopen(request, timeout=timeout)
+    return urllib.request.urlopen(request, timeout=timeout, context=tls.context())
 
 
 class SpotifyPlayer:

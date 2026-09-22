@@ -33,6 +33,8 @@ import urllib.request
 import webbrowser
 from typing import Callable, Dict, Optional
 
+from spotify import tls
+
 AUTH_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 
@@ -93,7 +95,7 @@ def _post_token(body: Dict[str, str], token_url: str = TOKEN_URL) -> Dict[str, o
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=15, context=tls.context()) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:
