@@ -52,6 +52,7 @@ a = Analysis(
         # engine; listed so a refactor that imports it lazily cannot drop it.
         "spotify.auth",
         "spotify.player",
+        "spotify.tls",
     ],
     hookspath=[],
     runtime_hooks=[],

@@ -11,3 +11,7 @@ websockets
 # The desktop window: a native WebView (WebView2 on Windows, WebKit on macOS).
 # Pulls pythonnet on Windows and pyobjc on macOS by itself.
 pywebview
+
+# The CA bundle Spotify's HTTPS is verified against. The frozen macOS app has
+# no usable system CA file of its own; see spotify/tls.py.
+certifi
